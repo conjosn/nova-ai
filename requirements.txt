@@ -1,0 +1,10 @@
+torch
+sounddevice
+numpy
+faster-whisper
+piper-tts
+langchain
+langchain-ollama
+chromadb
+customtkinter
+ollama
