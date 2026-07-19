@@ -58,6 +58,18 @@ class SettingsPanel(ctk.CTkFrame):
         )
         self.conversation_mode_menu.pack(fill="x", padx=30, pady=5)
 
+        self.auto_listen_var = ctk.BooleanVar(
+            value=bool(self.config.get("auto_start_listening"))
+        )
+        self.auto_listen_switch = ctk.CTkSwitch(
+            self,
+            text="Start voice channel when Nova opens",
+            variable=self.auto_listen_var,
+            command=self._save_auto_listen,
+            progress_color=styles["accent"],
+        )
+        self.auto_listen_switch.pack(anchor="w", padx=30, pady=(8, 2))
+
         NovaLabel(self, text="Voice (Piper)", font_size=14).pack(
             anchor="w", padx=30, pady=(15, 0)
         )
@@ -155,6 +167,18 @@ class SettingsPanel(ctk.CTkFrame):
                 "Open conversation enabled—wake word is no longer required"
                 if enabled
                 else "Wake word mode enabled"
+            )
+        )
+
+    def _save_auto_listen(self) -> None:
+        enabled = bool(self.auto_listen_var.get())
+        self.config["auto_start_listening"] = enabled
+        self._persist()
+        self.feedback.configure(
+            text=(
+                "Voice channel will start automatically next launch"
+                if enabled
+                else "Automatic voice start disabled"
             )
         )
 
