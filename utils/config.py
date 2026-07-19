@@ -23,6 +23,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "speaker_index": None,
     "voice_model": None,
     "wake_word": "hey nova",
+    "open_conversation": False,
     "auto_improve": False,
     "auto_improve_interval_minutes": 60,
 }

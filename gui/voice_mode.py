@@ -27,9 +27,7 @@ class VoiceMode(ctk.CTkFrame):
         self._closed = False
 
         NovaLabel(self, text="VOICE MODE", font_size=18, bold=True).pack(pady=(25, 8))
-        self.status = NovaLabel(
-            self, text='Say "Hey Nova" followed by your request', font_size=14
-        )
+        self.status = NovaLabel(self, text=self._idle_prompt(), font_size=14)
         self.status.pack(pady=8)
 
         self.level = ctk.CTkProgressBar(
@@ -65,6 +63,16 @@ class VoiceMode(ctk.CTkFrame):
         self.transcript.configure(state="disabled")
         self.transcript.see("end")
 
+    def _idle_prompt(self) -> str:
+        if self.voice_engine.open_conversation:
+            return "Open conversation: speak naturally—no wake word needed"
+        return f'Say "{self.voice_engine.wake_word.title()}" followed by your request'
+
+    def _listening_status(self) -> str:
+        if self.voice_engine.open_conversation:
+            return "Open conversation active"
+        return f'Listening for "{self.voice_engine.wake_word.title()}"'
+
     def _refresh_level(self) -> None:
         if self._closed or not self.winfo_exists():
             return
@@ -85,7 +93,7 @@ class VoiceMode(ctk.CTkFrame):
 
         def start() -> None:
             try:
-                self.voice_engine.start_listening(self._on_wake_word)
+                self.voice_engine.start_listening(self._on_prompt)
             except Exception as exc:
                 if not self._closed:
                     self.after(0, self._listening_failed, str(exc))
@@ -101,7 +109,7 @@ class VoiceMode(ctk.CTkFrame):
         if self._closed:
             return
         self._starting = False
-        self.status.configure(text='Listening for "Hey Nova"')
+        self.status.configure(text=self._listening_status())
         self.listen_button.configure(state="normal", text="Stop Listening")
 
     def _listening_failed(self, error: str) -> None:
@@ -111,7 +119,7 @@ class VoiceMode(ctk.CTkFrame):
         self.status.configure(text=f"Voice unavailable: {error}")
         self.listen_button.configure(state="normal", text="Retry Listening")
 
-    def _on_wake_word(self, prompt: str) -> None:
+    def _on_prompt(self, prompt: str) -> None:
         if self._closed:
             return
         self.after(0, self._append, "You", prompt)
@@ -145,7 +153,7 @@ class VoiceMode(ctk.CTkFrame):
             self._append("Nova", response)
             self.voice_engine.speak(response)
         self.status.configure(
-            text='Listening for "Hey Nova"'
+            text=self._listening_status()
             if self.voice_engine.is_listening
             else "Listening paused"
         )

@@ -35,6 +35,7 @@ def main() -> int:
             whisper_model=config.get("whisper_model"),
             whisper_device=config.get("whisper_device"),
             wake_word=config.get("wake_word"),
+            open_conversation=config.get("open_conversation"),
         )
         model_router = ModelRouter(default_model=config.get("model_name"))
         app = MainWindow(voice_engine=voice_engine, model_router=model_router)

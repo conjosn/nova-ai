@@ -1,14 +1,14 @@
 # Nova — Neural Omni-Versatile Assistant
 
 Nova is a private, local-first desktop assistant built around Ollama. It supports
-text chat, wake-word voice input, interruptible Piper speech, local model routing,
-persistent retrieval memory, and conversation-export imports.
+text chat, wake-word or open-conversation voice input, interruptible Piper speech,
+local model routing, persistent retrieval memory, and conversation-export imports.
 
 ## What works
 
 - Text chat against installed local Ollama models
 - Automatic routing between installed general and coding models
-- "Hey Nova" voice capture with non-blocking transcription
+- "Hey Nova" voice capture or optional open conversation without a wake word
 - GPU-first faster-whisper with automatic CPU fallback
 - Interruptible Piper TTS and selectable audio devices
 - Offline ChromaDB memory with deterministic, no-download embeddings
@@ -46,6 +46,10 @@ python launch_nova.py
 The installer downloads the default Piper voice. It does not install Ollama or
 pull a language model for you.
 
+To speak without saying "Hey Nova," open **Settings → Conversation mode** and
+select **Open conversation (no wake word)**. Nova ignores microphone input while
+its own voice is playing, then resumes listening automatically.
+
 ## Configuration and data
 
 Runtime data is stored in `~/.nova` by default:
@@ -76,7 +80,7 @@ discovery without recording or audible playback.
 ## Architecture
 
 - `core/model_router.py` — installed-model selection and Ollama chat
-- `core/voice_engine.py` — wake-word capture and faster-whisper transcription
+- `core/voice_engine.py` — wake-word/open-conversation capture and faster-whisper transcription
 - `core/tts_engine.py` — interruptible Piper playback
 - `core/persistent_memory.py` — offline retrieval memory
 - `core/data_importer.py` — ChatGPT and Claude export parsing
