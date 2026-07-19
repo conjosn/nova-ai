@@ -145,22 +145,38 @@ class PiperTTSEngine:
             raise RuntimeError("Audio playback dependencies are not installed") from exc
 
         audio = np.frombuffer(stdout, dtype=np.int16)
+        position = 0
+
+        def audio_callback(outdata, frames, time_info, status) -> None:
+            nonlocal position
+            del time_info
+            if status:
+                logger.warning("Audio output status: %s", status)
+            outdata.fill(0)
+            if stop_event.is_set():
+                raise sd.CallbackAbort
+
+            frame_count = min(frames, len(audio) - position)
+            if frame_count > 0:
+                outdata[:frame_count, 0] = audio[position : position + frame_count]
+                position += frame_count
+            if position >= len(audio):
+                raise sd.CallbackStop
+
         stream = sd.OutputStream(
             samplerate=self._sample_rate(),
             channels=1,
             dtype="int16",
             device=self.output_device,
+            callback=audio_callback,
+            blocksize=0,
         )
         with self._state_lock:
             self._current_stream = stream
         try:
             stream.start()
-            # Small writes keep interruption responsive on long sentences.
-            block_size = 4096
-            for offset in range(0, len(audio), block_size):
-                if stop_event.is_set():
-                    break
-                stream.write(audio[offset : offset + block_size])
+            while stream.active and not stop_event.wait(0.05):
+                continue
         finally:
             try:
                 stream.abort() if stop_event.is_set() else stream.stop()

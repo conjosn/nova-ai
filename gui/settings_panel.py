@@ -85,7 +85,8 @@ class SettingsPanel(ctk.CTkFrame):
 
             devices = sd.query_devices()
             for index, device in enumerate(devices):
-                name = f"{index}: {device['name']}"
+                host_api = sd.query_hostapis(device["hostapi"])["name"]
+                name = f"{index}: {device['name']} [{host_api}]"
                 if device["max_input_channels"] > 0:
                     self._input_devices[name] = index
                 if device["max_output_channels"] > 0:
