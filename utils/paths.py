@@ -16,6 +16,7 @@ DATA_DIR = Path(
 CONFIG_PATH = DATA_DIR / "config.json"
 MEMORY_PATH = DATA_DIR / "memory"
 VOICE_DIR = DATA_DIR / "voices"
+REMINDERS_PATH = DATA_DIR / "reminders.json"
 
 
 def ensure_data_dirs() -> None:

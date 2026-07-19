@@ -44,6 +44,7 @@ class ModelRouter:
         self.ollama_manager = ollama_manager or OllamaManager(
             host=config.get("ollama_host")
         )
+        self.last_selected_model: str | None = None
 
     @staticmethod
     def _parameter_billions(model_name: str) -> float:
@@ -111,5 +112,6 @@ class ModelRouter:
             "",
         )
         selected = model or self.choose_model(user_prompt)
+        self.last_selected_model = selected
         response = self.ollama_manager.chat(selected, messages)
         return self._response_content(response).strip()

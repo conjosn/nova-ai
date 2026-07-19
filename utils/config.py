@@ -24,6 +24,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "voice_model": None,
     "wake_word": "hey nova",
     "open_conversation": False,
+    "auto_start_listening": False,
+    "assistant_mode": "smart",
+    "agent_profile": "general",
     "auto_improve": False,
     "auto_improve_interval_minutes": 60,
 }

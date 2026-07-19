@@ -1,14 +1,22 @@
 # Nova — Neural Omni-Versatile Assistant
 
-Nova is a private, local-first desktop assistant built around Ollama. It supports
-text chat, wake-word or open-conversation voice input, interruptible Piper speech,
-local model routing, persistent retrieval memory, and conversation-export imports.
+Nova is a private, local-first desktop command assistant built around Ollama. The
+v2 command center combines voice, text, system telemetry, deterministic local
+skills, document knowledge, persistent memory, agent profiles, and proactive
+reminders without silently routing prompts to a cloud model.
 
 ## What works
 
 - Text chat against installed local Ollama models
 - Automatic routing between installed general and coding models
 - "Hey Nova" voice capture or optional open conversation without a wake word
+- Animated command-center HUD with live CPU, RAM, storage, NVIDIA GPU, and node health
+- One shared conversation across voice and text with serialized request handling
+- General, Analyst, Engineer, and Operator agent profiles
+- Smart, Controlled, and Chat execution modes
+- Allowlisted local skills for status, models, time, reminders, and session control
+- Local RAG ingestion for TXT, Markdown, PDF, Word, JSON, CSV, and source files
+- Persistent spoken reminders with an on-device proactive pulse
 - GPU-first faster-whisper with automatic CPU fallback
 - Interruptible Piper TTS and selectable audio devices
 - Offline ChromaDB memory with deterministic, no-download embeddings
@@ -49,6 +57,43 @@ pull a language model for you.
 To speak without saying "Hey Nova," open **Settings → Conversation mode** and
 select **Open conversation (no wake word)**. Nova ignores microphone input while
 its own voice is playing, then resumes listening automatically.
+The adjacent opt-in setting can open the voice channel automatically when Nova
+starts; it remains off by default so launching the app never activates a microphone
+without the operator choosing that behavior.
+
+## Command center
+
+The default screen is a three-panel command center:
+
+- **Neural Core** — animated voice state, microphone level, agent profile, and
+  execution-mode controls
+- **Command Stream** — one persistent session shared by typed and spoken prompts
+- **Telemetry** — live system health, GPU status, quick directives, and local
+  knowledge ingestion
+
+Execution modes deliberately separate capability from authority:
+
+- **Smart** checks deterministic local skills first, then uses the best installed
+  Ollama model when no skill matches.
+- **Controlled** runs only allowlisted local skills; unmatched requests never reach
+  a model or operating-system command.
+- **Chat** bypasses local skills and speaks directly with the selected local model.
+
+Useful local commands:
+
+```text
+/help
+/status
+/models
+/time
+/reminders
+remind me in 10 minutes to check the oven
+/clear
+```
+
+Use **Ingest Knowledge** to index local documents in ChromaDB. Retrieved chunks are
+identified by filename in the private context passed to Ollama. PDF and DOCX parsing
+also happen locally.
 
 ## Configuration and data
 
@@ -80,11 +125,24 @@ discovery without recording or audible playback.
 ## Architecture
 
 - `core/model_router.py` — installed-model selection and Ollama chat
+- `core/assistant_session.py` — shared context, skill routing, profiles, and memory
+- `core/system_monitor.py` — local CPU/RAM/disk/NVIDIA telemetry
+- `core/workspace.py` — document parsing, chunking, and local RAG ingestion
+- `core/reminders.py` — persistent proactive reminder queue
 - `core/voice_engine.py` — wake-word/open-conversation capture and faster-whisper transcription
 - `core/tts_engine.py` — interruptible Piper playback
 - `core/persistent_memory.py` — offline retrieval memory
 - `core/data_importer.py` — ChatGPT and Claude export parsing
 - `gui/` — CustomTkinter voice, text, model, and settings views
+- `gui/command_center.py` — unified voice/text/telemetry command surface
+- `gui/hud.py` — animated, code-native HUD components
+
+## Open-source design influences
+
+Nova's v2 architecture adapts public product patterns from Open WebUI, Khoj,
+AnythingLLM, Leon, OpenVoiceOS, and Open Interpreter. No source code or branded
+assets were copied. See [`docs/OPEN_SOURCE_FEATURE_MAP.md`](docs/OPEN_SOURCE_FEATURE_MAP.md)
+for the feature-by-feature map and safety boundaries.
 
 ## About "self-improvement"
 
