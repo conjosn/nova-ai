@@ -1,11 +1,20 @@
 import customtkinter as ctk
+
 from utils.styles import NovaStyles
 
 styles = NovaStyles.apply()
 
 class NovaButton(ctk.CTkButton):
     def __init__(self, master, text, command=None, **kwargs):
-        super().__init__(master, text=text, command=command, fg_color=styles["accent"], hover_color=styles["accent_hover"], text_color="black", corner_radius=8, height=36, **kwargs)
+        defaults = {
+            "fg_color": styles["accent"],
+            "hover_color": styles["accent_hover"],
+            "text_color": "black",
+            "corner_radius": 8,
+            "height": 36,
+        }
+        defaults.update(kwargs)
+        super().__init__(master, text=text, command=command, **defaults)
 
 class NovaLabel(ctk.CTkLabel):
     def __init__(self, master, text, font_size=14, bold=False, **kwargs):

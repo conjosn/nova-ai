@@ -1,132 +1,188 @@
-import customtkinter as ctk
+from __future__ import annotations
+
 import os
-import json
+import threading
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
+
 from gui.components import NovaButton, NovaLabel
-from utils.styles import NovaStyles
+from utils.config import load_config, save_config
 from utils.logger import NovaLogger
+from utils.paths import VOICE_DIR
+from utils.styles import NovaStyles
 
 logger = NovaLogger()
 styles = NovaStyles.apply()
-CONFIG_PATH = "config.json"
+
 
 class SettingsPanel(ctk.CTkFrame):
     def __init__(self, master, voice_engine=None):
         super().__init__(master, fg_color=styles["bg_primary"])
-
         self.voice_engine = voice_engine
-        self.config = self._load_config()
+        self.config = load_config()
+        self._input_devices: dict[str, int | None] = {"Default": None}
+        self._output_devices: dict[str, int | None] = {"Default": None}
 
         NovaLabel(self, text="SETTINGS", font_size=20, bold=True).pack(pady=20)
 
         NovaLabel(self, text="Microphone", font_size=14).pack(anchor="w", padx=30)
-        self.mic_menu = ctk.CTkOptionMenu(self, values=["Default"], command=self._save_mic)
+        self.mic_menu = ctk.CTkOptionMenu(
+            self, values=["Default"], command=self._save_mic
+        )
         self.mic_menu.pack(fill="x", padx=30, pady=5)
 
-        NovaLabel(self, text="Speaker", font_size=14).pack(anchor="w", padx=30, pady=(15, 0))
-        self.speaker_menu = ctk.CTkOptionMenu(self, values=["Default"], command=self._save_speaker)
+        NovaLabel(self, text="Speaker", font_size=14).pack(
+            anchor="w", padx=30, pady=(15, 0)
+        )
+        self.speaker_menu = ctk.CTkOptionMenu(
+            self, values=["Default"], command=self._save_speaker
+        )
         self.speaker_menu.pack(fill="x", padx=30, pady=5)
 
-        NovaLabel(self, text="Voice (Piper)", font_size=14).pack(anchor="w", padx=30, pady=(15, 0))
-        self.voice_menu = ctk.CTkOptionMenu(self, values=[
-            "en_US-lessac-medium (Default)",
-            "en_US-ryan-medium",
-            "Custom .onnx file..."
-        ], command=self._on_voice_selected)
+        NovaLabel(self, text="Voice (Piper)", font_size=14).pack(
+            anchor="w", padx=30, pady=(15, 0)
+        )
+        self.voice_menu = ctk.CTkOptionMenu(
+            self,
+            values=[
+                "en_US-lessac-medium (Default)",
+                "en_US-ryan-medium",
+                "Custom .onnx file...",
+            ],
+            command=self._on_voice_selected,
+        )
         self.voice_menu.pack(fill="x", padx=30, pady=5)
 
-        NovaButton(self, text="Import from ChatGPT / Claude / Gemini", command=self._import_data).pack(pady=20, padx=30, fill="x")
-        NovaButton(self, text="Clear Long-Term Memory", command=self._clear_memory, fg_color="#ef4444").pack(pady=10, padx=30, fill="x")
+        NovaButton(
+            self,
+            text="Import ChatGPT / Claude Export",
+            command=self._import_data,
+        ).pack(pady=20, padx=30, fill="x")
+        NovaButton(
+            self,
+            text="Clear Long-Term Memory",
+            command=self._clear_memory,
+            fg_color="#ef4444",
+            hover_color="#dc2626",
+            text_color="white",
+        ).pack(pady=10, padx=30, fill="x")
+        self.feedback = NovaLabel(self, text="", font_size=12)
+        self.feedback.pack(pady=8)
 
         self._populate_audio_devices()
 
-    def _load_config(self):
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, "r") as f:
-                return json.load(f)
-        return {}
+    def _persist(self) -> None:
+        try:
+            save_config(self.config)
+        except OSError as exc:
+            logger.error("Failed to save settings: %s", exc)
+            self.feedback.configure(text=f"Could not save settings: {exc}")
 
-    def _save_config(self):
-        with open(CONFIG_PATH, "w") as f:
-            json.dump(self.config, f, indent=2)
-
-    def _populate_audio_devices(self):
+    def _populate_audio_devices(self) -> None:
         try:
             import sounddevice as sd
+
             devices = sd.query_devices()
-            input_devices = [d["name"] for d in devices if d["max_input_channels"] > 0]
-            output_devices = [d["name"] for d in devices if d["max_output_channels"] > 0]
+            for index, device in enumerate(devices):
+                name = f"{index}: {device['name']}"
+                if device["max_input_channels"] > 0:
+                    self._input_devices[name] = index
+                if device["max_output_channels"] > 0:
+                    self._output_devices[name] = index
+            self.mic_menu.configure(values=list(self._input_devices))
+            self.speaker_menu.configure(values=list(self._output_devices))
+            self._select_saved_device(
+                self.mic_menu, self._input_devices, self.config.get("mic_index")
+            )
+            self._select_saved_device(
+                self.speaker_menu,
+                self._output_devices,
+                self.config.get("speaker_index"),
+            )
+        except Exception as exc:
+            logger.error("Failed to load audio devices: %s", exc)
+            self.feedback.configure(text=f"Audio devices unavailable: {exc}")
 
-            self.mic_menu.configure(values=input_devices or ["Default"])
-            self.speaker_menu.configure(values=output_devices or ["Default"])
-        except Exception as e:
-            logger.error(f"Failed to load audio devices: {e}")
+    @staticmethod
+    def _select_saved_device(menu, devices, saved_index) -> None:
+        selected = next(
+            (name for name, index in devices.items() if index == saved_index), "Default"
+        )
+        menu.set(selected)
 
-    def _save_mic(self, choice):
-        try:
-            import sounddevice as sd
-            devices = sd.query_devices()
-            index = next((i for i, d in enumerate(devices) if d["name"] == choice), None)
-            if index is not None:
-                self.config["mic_index"] = index
-                self._save_config()
-                if self.voice_engine:
-                    self.voice_engine.set_microphone(index)
-        except Exception as e:
-            logger.error(f"Error saving mic: {e}")
+    def _save_mic(self, choice: str) -> None:
+        index = self._input_devices.get(choice)
+        self.config["mic_index"] = index
+        self._persist()
+        if self.voice_engine:
+            self.voice_engine.set_microphone(index)
 
-    def _save_speaker(self, choice):
-        try:
-            import sounddevice as sd
-            devices = sd.query_devices()
-            index = next((i for i, d in enumerate(devices) if d["name"] == choice), None)
-            if index is not None:
-                self.config["speaker_index"] = index
-                self._save_config()
-        except Exception as e:
-            logger.error(f"Error saving speaker: {e}")
+    def _save_speaker(self, choice: str) -> None:
+        index = self._output_devices.get(choice)
+        self.config["speaker_index"] = index
+        self._persist()
+        if self.voice_engine:
+            self.voice_engine.set_speaker(index)
 
-    def _on_voice_selected(self, choice):
+    def _on_voice_selected(self, choice: str) -> None:
         if choice == "Custom .onnx file...":
-            from tkinter import filedialog
-            path = filedialog.askopenfilename(title="Select Piper voice model (.onnx)", filetypes=[("Piper Model", "*.onnx")])
-            if path:
-                self.config["voice_model"] = path
-                self._save_config()
-                if self.voice_engine:
-                    self.voice_engine.set_voice(path)
+            path = filedialog.askopenfilename(
+                title="Select Piper voice model (.onnx)",
+                filetypes=[("Piper Model", "*.onnx")],
+            )
+            if not path:
+                return
         else:
-            voice_map = {
-                "en_US-lessac-medium (Default)": os.path.expanduser("~/.local/share/piper-tts/en_US-lessac-medium.onnx"),
-                "en_US-ryan-medium": os.path.expanduser("~/.local/share/piper-tts/en_US-ryan-medium.onnx"),
-            }
-            path = voice_map.get(choice)
-            if path and os.path.exists(path):
-                self.config["voice_model"] = path
-                self._save_config()
-                if self.voice_engine:
-                    self.voice_engine.set_voice(path)
+            filename = {
+                "en_US-lessac-medium (Default)": "en_US-lessac-medium.onnx",
+                "en_US-ryan-medium": "en_US-ryan-medium.onnx",
+            }[choice]
+            path = str(VOICE_DIR / filename)
+            if not os.path.exists(path):
+                self.feedback.configure(text=f"Voice model is not installed: {path}")
+                return
 
-    def _import_data(self):
-        from tkinter import filedialog
-        from core.data_importer import DataImporter
-        from core.persistent_memory import PersistentMemory
+        self.config["voice_model"] = path
+        self._persist()
+        if self.voice_engine:
+            self.voice_engine.set_voice(path)
 
-        path = filedialog.askdirectory(title="Select exported folder")
-        if not path: return
+    def _import_data(self) -> None:
+        path = filedialog.askdirectory(title="Select exported conversation folder")
+        if not path:
+            return
+        self.feedback.configure(text="Importing conversations...")
 
-        try:
-            memory = PersistentMemory()
-            importer = DataImporter(memory)
-            importer.import_chatgpt_export(path)
-            ctk.CTkLabel(self, text="Import successful!", text_color="#22c55e").pack(pady=10)
-        except Exception as e:
-            logger.error(f"Import failed: {e}")
+        def worker() -> None:
+            try:
+                from core.data_importer import DataImporter
+                from core.persistent_memory import PersistentMemory
 
-    def _clear_memory(self):
+                count = DataImporter(PersistentMemory()).import_export(path)
+            except Exception as exc:
+                logger.exception("Conversation import failed")
+                self.after(0, self.feedback.configure, {"text": f"Import failed: {exc}"})
+            else:
+                self.after(
+                    0,
+                    self.feedback.configure,
+                    {"text": f"Imported {count} messages"},
+                )
+
+        threading.Thread(target=worker, name="nova-import", daemon=True).start()
+
+    def _clear_memory(self) -> None:
+        if not messagebox.askyesno(
+            "Clear Long-Term Memory",
+            "Permanently delete Nova's local conversation memory?",
+        ):
+            return
         try:
             from core.persistent_memory import PersistentMemory
-            memory = PersistentMemory()
-            memory.client.delete_collection("nova_memory")
-            ctk.CTkLabel(self, text="Memory cleared", text_color="#22c55e").pack(pady=10)
-        except Exception as e:
-            logger.error(f"Clear memory failed: {e}")
+
+            PersistentMemory().clear()
+            self.feedback.configure(text="Memory cleared")
+        except Exception as exc:
+            logger.exception("Clear memory failed")
+            self.feedback.configure(text=f"Clear failed: {exc}")

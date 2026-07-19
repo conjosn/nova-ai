@@ -1,48 +1,52 @@
 #!/usr/bin/env python3
-import customtkinter as ctk
-import json
-import os
+"""Nova desktop launcher."""
+
+from __future__ import annotations
+
 import sys
+
+from utils.config import load_config
 from utils.logger import NovaLogger
+from utils.paths import ensure_data_dirs
 
 logger = NovaLogger()
-CONFIG_PATH = "config.json"
 
-def load_config():
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r") as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
 
-def main():
+def main() -> int:
     try:
-        ctk.set_appearance_mode("dark")
-        config = load_config()
-
-        from core.voice_engine import VoiceEngine
-        voice_engine = VoiceEngine(mic_index=config.get("mic_index"))
-
-        if config.get("speaker_index") is not None:
-            voice_engine.set_speaker(config.get("speaker_index"))
-
-        if config.get("voice_model") and os.path.exists(config["voice_model"]):
-            voice_engine.set_voice(config["voice_model"])
+        import customtkinter as ctk
 
         from core.model_router import ModelRouter
-        model_router = ModelRouter()
-
+        from core.voice_engine import VoiceEngine
         from gui.main_window import MainWindow
+    except ImportError as exc:
+        logger.error("Missing dependency: %s", exc)
+        logger.error("Install dependencies with: python -m pip install -r requirements.txt")
+        return 1
+
+    try:
+        ensure_data_dirs()
+        config = load_config()
+        ctk.set_appearance_mode("dark")
+
+        voice_engine = VoiceEngine(
+            mic_index=config.get("mic_index"),
+            speaker_index=config.get("speaker_index"),
+            whisper_model=config.get("whisper_model"),
+            whisper_device=config.get("whisper_device"),
+            wake_word=config.get("wake_word"),
+        )
+        model_router = ModelRouter(default_model=config.get("model_name"))
         app = MainWindow(voice_engine=voice_engine, model_router=model_router)
         app.mainloop()
-
+        return 0
     except KeyboardInterrupt:
         logger.info("Nova closed by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        sys.exit(1)
+        return 0
+    except Exception:
+        logger.exception("Fatal startup error")
+        return 1
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
