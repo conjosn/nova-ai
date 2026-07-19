@@ -57,6 +57,22 @@ Runtime data is stored in `~/.nova` by default:
 Set `NOVA_DATA_DIR` to move all runtime data. Set `NOVA_WHISPER_DEVICE` to `cpu`
 or `cuda` to override automatic transcription-device selection.
 
+## Hardware validation
+
+Run the interactive diagnostic on the computer that will actually run Nova:
+
+```powershell
+.\.venv\Scripts\python.exe diagnose_nova.py --output hardware-report.json
+```
+
+It performs a live local Ollama response, forces a real faster-whisper CUDA
+inference, records and transcribes a spoken microphone phrase, plays a speaker test
+tone, and renders a Piper sentence for audible confirmation. It exits with a nonzero
+status if any required check fails and can save a shareable JSON report.
+
+Use `--non-interactive` to check Ollama, CUDA, dependencies, and audio-device
+discovery without recording or audible playback.
+
 ## Architecture
 
 - `core/model_router.py` — installed-model selection and Ollama chat
