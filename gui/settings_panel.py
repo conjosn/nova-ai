@@ -15,6 +15,9 @@ from utils.styles import NovaStyles
 logger = NovaLogger()
 styles = NovaStyles.apply()
 
+WAKE_WORD_MODE = "Wake word required"
+OPEN_CONVERSATION_MODE = "Open conversation (no wake word)"
+
 
 class SettingsPanel(ctk.CTkFrame):
     def __init__(self, master, voice_engine=None):
@@ -39,6 +42,21 @@ class SettingsPanel(ctk.CTkFrame):
             self, values=["Default"], command=self._save_speaker
         )
         self.speaker_menu.pack(fill="x", padx=30, pady=5)
+
+        NovaLabel(self, text="Conversation mode", font_size=14).pack(
+            anchor="w", padx=30, pady=(15, 0)
+        )
+        self.conversation_mode_menu = ctk.CTkOptionMenu(
+            self,
+            values=[WAKE_WORD_MODE, OPEN_CONVERSATION_MODE],
+            command=self._save_conversation_mode,
+        )
+        self.conversation_mode_menu.set(
+            OPEN_CONVERSATION_MODE
+            if self.config.get("open_conversation")
+            else WAKE_WORD_MODE
+        )
+        self.conversation_mode_menu.pack(fill="x", padx=30, pady=5)
 
         NovaLabel(self, text="Voice (Piper)", font_size=14).pack(
             anchor="w", padx=30, pady=(15, 0)
@@ -125,6 +143,20 @@ class SettingsPanel(ctk.CTkFrame):
         self._persist()
         if self.voice_engine:
             self.voice_engine.set_speaker(index)
+
+    def _save_conversation_mode(self, choice: str) -> None:
+        enabled = choice == OPEN_CONVERSATION_MODE
+        self.config["open_conversation"] = enabled
+        self._persist()
+        if self.voice_engine:
+            self.voice_engine.set_open_conversation(enabled)
+        self.feedback.configure(
+            text=(
+                "Open conversation enabled—wake word is no longer required"
+                if enabled
+                else "Wake word mode enabled"
+            )
+        )
 
     def _on_voice_selected(self, choice: str) -> None:
         if choice == "Custom .onnx file...":

@@ -1,4 +1,4 @@
-"""Low-latency wake-word capture with GPU-first transcription."""
+"""Low-latency voice capture with optional wake-word gating."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ class VoiceEngine:
         whisper_model: str | None = None,
         whisper_device: str | None = None,
         wake_word: str | None = None,
+        open_conversation: bool | None = None,
         energy_threshold: float = 0.012,
     ) -> None:
         config = load_config()
@@ -36,10 +37,15 @@ class VoiceEngine:
         self.whisper_model_name = whisper_model or config["whisper_model"]
         self.whisper_device = whisper_device or config["whisper_device"]
         self.wake_word = (wake_word or config["wake_word"]).strip().lower()
+        self.open_conversation = bool(
+            config["open_conversation"]
+            if open_conversation is None
+            else open_conversation
+        )
         self.energy_threshold = max(0.001, float(energy_threshold))
 
         self.is_listening = False
-        self.on_wake_word_callback: Callable[[str], None] | None = None
+        self.on_prompt_callback: Callable[[str], None] | None = None
         self.current_audio_level = 0.0
         self.stream: Any | None = None
         self._whisper: Any | None = None
@@ -59,6 +65,15 @@ class VoiceEngine:
     def set_speaker(self, speaker_index: int | None) -> None:
         self.speaker_index = speaker_index
         self.tts_engine.set_output_device(speaker_index)
+
+    def set_open_conversation(self, enabled: bool) -> None:
+        """Enable or disable prompt dispatch without the configured wake word."""
+
+        self.open_conversation = bool(enabled)
+        logger.info(
+            "Conversation mode changed to %s",
+            "open" if self.open_conversation else "wake word",
+        )
 
     def set_voice(self, model_path: str) -> None:
         self.stop_speaking()
@@ -112,7 +127,7 @@ class VoiceEngine:
         )
         return self._whisper
 
-    def start_listening(self, on_wake_word_callback: Callable[[str], None]) -> None:
+    def start_listening(self, on_prompt_callback: Callable[[str], None]) -> None:
         with self._state_lock:
             if self.is_listening:
                 return
@@ -128,7 +143,7 @@ class VoiceEngine:
         self._ensure_whisper()
         if self._stop_event.is_set():
             return
-        self.on_wake_word_callback = on_wake_word_callback
+        self.on_prompt_callback = on_prompt_callback
         self._audio_queue = queue.Queue(maxsize=4)
         self._transcription_thread = threading.Thread(
             target=self._transcription_loop,
@@ -164,6 +179,16 @@ class VoiceEngine:
             if status:
                 logger.warning("Audio input status: %s", status)
             if not self.is_listening:
+                return
+
+            # In open-conversation mode, accepting Nova's own speaker output as a
+            # fresh prompt would create an accidental feedback loop.
+            if self.open_conversation and self.tts_engine.is_speaking:
+                state["audio"].clear()
+                state["speaking"] = False
+                state["silence_blocks"] = 0
+                state["sample_count"] = 0
+                self.current_audio_level = 0.0
                 return
 
             chunk = indata[:, 0].astype(np.float32, copy=True)
@@ -211,7 +236,24 @@ class VoiceEngine:
         with self._state_lock:
             self.stream = stream
             self.is_listening = True
-        logger.info("Wake-word listening started")
+        logger.info(
+            "%s listening started",
+            "Open-conversation" if self.open_conversation else "Wake-word",
+        )
+
+    def _prompt_from_transcript(self, text: str) -> str | None:
+        """Return a prompt when the transcript is eligible for the active mode."""
+
+        transcript = text.strip()
+        if not transcript:
+            return None
+        if self.open_conversation:
+            return transcript
+
+        _, separator, after = transcript.partition(self.wake_word)
+        if not separator:
+            return None
+        return after.strip(" ,.!?") or None
 
     def _transcription_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -223,12 +265,9 @@ class VoiceEngine:
                 break
             try:
                 text = self._transcribe(audio)
-                before, separator, after = text.partition(self.wake_word)
-                del before
-                if separator:
-                    prompt = after.strip(" ,.!?")
-                    if prompt and self.on_wake_word_callback:
-                        self.on_wake_word_callback(prompt)
+                prompt = self._prompt_from_transcript(text)
+                if prompt and self.on_prompt_callback:
+                    self.on_prompt_callback(prompt)
             except Exception:
                 logger.exception("Speech transcription failed")
 
@@ -256,7 +295,7 @@ class VoiceEngine:
         if worker and worker is not threading.current_thread():
             worker.join(timeout=1.0)
         self.current_audio_level = 0.0
-        logger.info("Wake-word listening stopped")
+        logger.info("Voice listening stopped")
 
     def shutdown(self) -> None:
         self.stop_listening()
