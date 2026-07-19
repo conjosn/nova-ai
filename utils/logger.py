@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
 
+
 def get_logger(name="Nova"):
     logger = logging.getLogger(name)
     if not logger.handlers:

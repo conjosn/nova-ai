@@ -1,5 +1,6 @@
 import customtkinter as ctk
 
+
 class NovaStyles:
     @staticmethod
     def apply():
